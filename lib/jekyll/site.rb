@@ -1,8 +1,9 @@
 require 'set'
+require 'ruby-debug'
 
 module Jekyll
   class Site
-    attr_accessor :config, :layouts, :posts, :pages, :static_files,
+    attr_accessor :config, :layouts, :posts, :writings, :readings, :pages, :static_files,
                   :categories, :exclude, :include, :source, :dest, :lsi, :pygments,
                   :permalink_style, :tags, :time, :future, :safe, :plugins, :limit_posts,
                   :show_drafts, :keep_files, :baseurl
@@ -57,6 +58,8 @@ module Jekyll
                              end
       self.layouts         = {}
       self.posts           = []
+      self.writings        = []
+      self.readings        = []
       self.pages           = []
       self.static_files    = []
       self.categories      = Hash.new { |hash, key| hash[key] = [] }
@@ -138,6 +141,8 @@ module Jekyll
       entries = Dir.chdir(base) { filter_entries(Dir.entries('.')) }
 
       self.read_posts(dir)
+      self.read_writings(dir)
+      #self.read_readings(dir)
       self.read_drafts(dir) if self.show_drafts
       self.posts.sort!
       limit_posts! if limit_posts > 0 # limit the posts if :limit_posts option is set
@@ -155,6 +160,50 @@ module Jekyll
       end
     end
 
+    # Read all the files in <source>/<dir>/_writings and create a new Post
+    # object with each one.
+    #
+    # dir - The String relative path of the directory to read.
+    #
+    # Returns nothing.
+    def read_writings(dir)
+      entries = get_entries(dir, '_writings')
+
+      # first pass processes, but does not yet render post content
+      entries.each do |f|
+        if Post.valid?(f)
+          post = Post.new(self, self.source, dir, f, :writing)
+
+          if post.published && (self.future || post.date <= self.time)
+            #aggregate_post_info(post)
+            aggregate_info(:writings, post)
+          end
+        end
+      end
+    end
+
+    # Read all the files in <source>/<dir>/_readings and create a new Post
+    # object with each one.
+    #
+    # dir - The String relative path of the directory to read.
+    #
+    # Returns nothing.
+    def read_readings(dir)
+      entries = get_entries(dir, '_readings')
+
+      # first pass processes, but does not yet render post content
+      entries.each do |f|
+        if Post.valid?(f)
+          post = Post.new(self, self.source, dir, f, :reading)
+
+          if post.published && (self.future || post.date <= self.time)
+            #aggregate_post_info(post)
+            aggregate_info(:readings, post)
+          end
+        end
+      end
+    end
+
     # Read all the files in <source>/<dir>/_posts and create a new Post
     # object with each one.
     #
@@ -167,10 +216,10 @@ module Jekyll
       # first pass processes, but does not yet render post content
       entries.each do |f|
         if Post.valid?(f)
-          post = Post.new(self, self.source, dir, f)
+          post = Post.new(self, self.source, dir, f, :post)
 
           if post.published && (self.future || post.date <= self.time)
-            aggregate_post_info(post)
+            aggregate_info(:posts, post)
           end
         end
       end
@@ -209,6 +258,7 @@ module Jekyll
     # Returns nothing.
     def render
       payload = site_payload
+
       self.posts.each do |post|
         post.render(self.layouts, payload)
       end
@@ -303,6 +353,10 @@ module Jekyll
     #                  current time if none was specified.
     #   "posts"      - The Array of Posts, sorted chronologically by post date
     #                  and then title.
+    #   "writings"   - The Array of Posts, sorted chronologically by post date
+    #                  and then title.
+    #   "readings"   - The Array of Posts, sorted chronologically by post date
+    #                  and then title.
     #   "pages"      - The Array of all Pages.
     #   "html_pages" - The Array of HTML Pages.
     #   "categories" - The Hash of category values and Posts.
@@ -313,6 +367,8 @@ module Jekyll
       {"site" => self.config.merge({
           "time"       => self.time,
           "posts"      => self.posts.sort { |a, b| b <=> a },
+          "writings"   => self.writings.sort { |a, b| b <=> a },
+          "readings"   => self.readings.sort { |a, b| b <=> a },
           "pages"      => self.pages,
           "html_pages" => self.pages.reject { |page| !page.html? },
           "categories" => post_attr_hash('categories'),
@@ -385,8 +441,9 @@ module Jekyll
     # post - The Post object to aggregate information for
     #
     # Returns nothing
-    def aggregate_post_info(post)
-      self.posts << post
+    def aggregate_info(type, post)
+      self.send(type) << post
+      #self.posts << post
       post.categories.each { |c| self.categories[c] << post }
       post.tags.each { |c| self.tags[c] << post }
     end

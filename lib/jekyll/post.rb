@@ -23,6 +23,7 @@ module Jekyll
       content
       excerpt
       path
+      type
     ]
 
     # Post name validator. Post filenames must be like:
@@ -35,7 +36,7 @@ module Jekyll
 
     attr_accessor :site
     attr_accessor :data, :extracted_excerpt, :content, :output, :ext
-    attr_accessor :date, :slug, :published, :tags, :categories
+    attr_accessor :date, :slug, :published, :tags, :categories, :type
 
     attr_reader :name
 
@@ -46,15 +47,17 @@ module Jekyll
     # name       - The String filename of the post file.
     #
     # Returns the new Post.
-    def initialize(site, source, dir, name)
+    def initialize(site, source, dir, name, type = :post)
       @site = site
       @dir = dir
+      @type = type
       @base = self.containing_dir(source, dir)
       @name = name
 
       self.categories = dir.downcase.split('/').reject { |x| x.empty? }
       self.process(name)
       self.read_yaml(@base, name)
+
 
       if self.data.has_key?('date')
         self.date = Time.parse(self.data["date"].to_s)
@@ -87,7 +90,7 @@ module Jekyll
 
     # Get the full path to the directory containing the post files
     def containing_dir(source, dir)
-      return File.join(source, dir, '_posts')
+      return File.join(source, dir, '_' + self.type.to_s + 's')
     end
 
     # Read the YAML frontmatter.
